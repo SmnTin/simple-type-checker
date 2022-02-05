@@ -1,47 +1,52 @@
 {-# LANGUAGE InstanceSigs #-}
-module SimpleTypeChecker.Parser (Parser) where
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+module SimpleTypeChecker.Parser (Parser, parser, runParser) where
 
-import Control.Monad.Except (Except, MonadError (catchError))
+import Control.Monad.Except (Except, MonadError (catchError, throwError), runExcept)
 import Control.Applicative (Alternative ((<|>)), empty)
 import Data.Coerce (coerce)
 
 -- Monadic parser that is used to parse lambda expressions from the command prompt
-newtype Parser e a =
-    Parser { runParser :: String -> Except e (String,a) }
+newtype Parser a =
+    Parser { runParser :: String -> Maybe (String, a) }
 
-instance Functor (Parser e) where
-    fmap :: (a -> b) -> Parser e a -> Parser e b
+parser = Parser
+
+instance Functor Parser where
+    fmap :: forall a b. (a -> b) -> Parser a -> Parser b
     fmap = coerce ( fmap . fmap . fmap
-        :: (a -> b) -> (String -> Except e (String, a)) -> String -> Except e (String, b) )
+        :: (a -> b) -> (String -> Maybe (String, a)) -> (String -> Maybe (String, b)) )
 
-instance Applicative (Parser e) where
-    pure :: a -> Parser e a
+instance Applicative Parser where
+    pure :: a -> Parser a
     pure x = Parser $ \s -> pure (s, x)
 
-    (<*>) :: Parser e (a -> b) -> Parser e a -> Parser e b
+    (<*>) :: Parser (a -> b) -> Parser a -> Parser b
     Parser u <*> Parser v = Parser f where
         f xs = do
             (xs', fun) <- u xs
             (xs'', arg) <- v xs'
             return (xs'', fun arg)
 
-instance Monoid e => Alternative (Parser e) where
-    empty :: Parser e a
+instance Alternative Parser where
+    empty :: Parser a
     empty = Parser $ const empty
 
-    (<|>) :: Parser e a -> Parser e a -> Parser e a
+    (<|>) :: Parser a -> Parser a -> Parser a
     Parser u <|> Parser v = Parser f where
         f xs = u xs `catchError` const (v xs)
 
-instance Monad (Parser e) where
+instance Monad Parser where
     return = pure
 
-    (>>=) :: Parser tok a -> (a -> Parser tok b) -> Parser tok b
-    (Parser u) >>= f = Parser g where 
+    (>>=) :: Parser a -> (a -> Parser b) -> Parser b
+    (Parser u) >>= f = Parser g where
         g xs = do
             (xs', y) <- u xs
             runParser (f y) xs'
-            
-instance Monoid e => MonadFail (Parser e) where
-    fail :: String -> Parser e a
+
+instance MonadFail Parser where
+    fail :: String -> Parser a
     fail _ = empty

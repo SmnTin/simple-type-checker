@@ -10,15 +10,16 @@ type Symb = String
 data Expr = Var Symb             -- An expression variable
           | Expr :@ Expr         -- An application
           | Lam Symb Type Expr   -- A lambda abstraction
-  deriving (Eq,Show)
+    deriving Eq
 
 data Type = TVar Symb            -- A type variable
           | Type :-> Type        -- An arrow (a mapping from one type to another)
-  deriving (Eq,Show)
+    deriving Eq
 
 -- Environment. It is a list of declarations
 newtype Env = Env [(Symb,Type)]
-  deriving (Eq,Show)
+    deriving Eq
 
 
 data TypingRelation = TypingRelation Env Expr Type
+    deriving Eq
