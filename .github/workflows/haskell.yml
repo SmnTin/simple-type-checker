@@ -24,7 +24,11 @@ jobs:
         run: |
           stack update
           stack build --only-dependencies
+      - name: Install test dependencies
+        run: stack test --only-dependencies
       - name: Build
         run: stack build
+      - name: Build tests
+        run: stack test --no-run-tests
       - name: Run tests
         run: stack test
