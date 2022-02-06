@@ -43,9 +43,10 @@ string []     = undefined
 parseSymbol :: Parser Symb
 parseSymbol = do
     h <- letter
-    t <- many alphaNum
+    t <- many (alphaNum <|> char '_')
+    q <- many (char '\'')
     _ <- spaces
-    return (h:t)
+    return (h : t ++ q)
 
 
 parseExprVariable :: Parser Expr
@@ -91,7 +92,8 @@ parseType = do
 
 
 parseExpression :: Parser Expr
-parseExpression = parseApplication <|>
+parseExpression = spaces >>
+                  parseApplication <|>
                   parseAtom
 
 
@@ -133,6 +135,7 @@ parseDeclaration = do
 
 parseNonEmptyEnvironment :: Parser Env
 parseNonEmptyEnvironment = do
+    _     <- spaces
     decls <- many parseWithComma
     tail  <- parseDeclaration
     return $ Env $ decls ++ [tail]
@@ -177,4 +180,4 @@ instance Show Env where
         where showDecl (s, t) = showString s . showString " : " . shows t
 
 instance Show TypingRelation where
-    showsPrec _ (TypingRelation env expr t) = shows env . showString " |- " . shows expr . showString " : " . shows t
+    showsPrec p (TypingRelation env expr t) = showParen (p > 0) $ shows env . showString " |- " . shows expr . showString " : " . shows t

@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module SimpleTypeChecker.Parser (Parser, parser, runParser) where
+module SimpleTypeChecker.Parser (Parser, parser, runParser, runParserFully) where
 
 import Control.Monad.Except (Except, MonadError (catchError, throwError), runExcept)
 import Control.Applicative (Alternative ((<|>)), empty)
@@ -12,7 +12,13 @@ import Data.Coerce (coerce)
 newtype Parser a =
     Parser { runParser :: String -> Maybe (String, a) }
 
+parser :: (String -> Maybe (String, a)) -> Parser a
 parser = Parser
+
+runParserFully :: Parser a -> String -> Maybe a
+runParserFully (Parser f) s = case f s of
+    Just ([], r) -> Just r
+    _            -> Nothing 
 
 instance Functor Parser where
     fmap :: forall a b. (a -> b) -> Parser a -> Parser b
