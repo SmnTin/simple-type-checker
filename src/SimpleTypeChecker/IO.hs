@@ -176,21 +176,8 @@ instance Show Expr where
 
 instance Show Env where
     showsPrec _ (Env [])      = showString ""
-    showsPrec _ (Env (d:ds))  = foldl' (\sh d' -> sh . showString ", " . showDecl d') (showDecl d) ds
+    showsPrec _ (Env (d:ds))  = foldl' (\sh d' -> sh . showString ", " . showDecl d') (showDecl d) ds . showChar ' '
         where showDecl (s, t) = showString s . showString " : " . shows t
 
 instance Show TypingRelation where
-    showsPrec p (TypingRelation env expr t) = showParen (p > 0) $ shows env . showString " |- " . shows expr . showString " : " . shows t
-
-
-instance Read Type where
-    readsPrec = parserToReadsPrec parseType
-
-instance Read Expr where
-    readsPrec = parserToReadsPrec parseExpression
-
-instance Read Env where
-    readsPrec = parserToReadsPrec parseEnvironment
-
-instance Read TypingRelation where
-    readsPrec = parserToReadsPrec parseTypingRelation
+    showsPrec p (TypingRelation env expr t) = showParen (p > 0) $ shows env . showString "|- " . shows expr . showString " : " . shows t

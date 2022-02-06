@@ -10,6 +10,7 @@ import Control.Applicative
 
 tests = testGroup "SimpleTypeChecker.IO.Tests" [
         testParse
+      , testShow
     ]
 
 testParse = testGroup "Parsing" [
@@ -31,12 +32,11 @@ generateParseTests testGroupName parser parseTests =
         return $ testCase testName $ assertEqual "" expected parsedExpr
 
 data ShowTest a = ShowTest TestName String a
-generateShowTests :: (Eq a, Show a) => TestName -> Parser a -> [ParseTest a] -> TestTree
-generateShowTests testGroupName parser parseTests =
+generateShowTests :: (Eq a, Show a) => TestName -> [ShowTest a] -> TestTree
+generateShowTests testGroupName parseTests =
     testGroup testGroupName $ do
-        ParseTest testName expected strToParse <- parseTests
-        let parsedExpr = runParserFully parser strToParse
-        return $ testCase testName $ assertEqual "" expected parsedExpr
+        ShowTest testName expected expr <- parseTests
+        return $ testCase testName $ assertEqual "" expected $ show expr
 
 testParseVariablesOnly = generateParseTests "Variables only" parseExpression [
         ParseTest "Simple"                      (Just $ Var "x")        "x"
@@ -161,6 +161,27 @@ testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelati
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
             "y : b |- \\x : a -> x y : a -> b -> a"
+      , ParseTest "Empty expression"
+            Nothing
+            "y : b |- : a -> b -> a"
+      , ParseTest "No type"
+            Nothing
+            "y : b |- \\x : a -> x y : "
+      , ParseTest "No type"
+            Nothing
+            "y : b |- \\x : a -> x y"
+      , ParseTest "Long environment"
+            (Just $ TypingRelation 
+                    (Env [("y", TVar "b"), ("z", TVar "q")])
+                    (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+                    (TVar "a" :-> TVar "b" :-> TVar "a"))
+            "y : b, z : q |- \\x : a -> x y : a -> b -> a"
+      , ParseTest "No comma in environment"
+            Nothing
+            "y : b z : q |- \\x : a -> x y : a -> b -> a"
+      , ParseTest "Extra comma in environment"
+            Nothing
+            "y : b, z : q, |- \\x : a -> x y : a -> b -> a"
       , ParseTest "Empty environment"
             (Just $ TypingRelation 
                     (Env [])
@@ -180,4 +201,90 @@ testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelati
                     :@ Lam "t" (TVar "r") (Var "t"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
             "z : a -> b |- (\\x : a -> x y) (\\t : r -> t) : a -> b -> a"
+    ]
+
+testShow = testGroup "Showing" [
+        testShowExpression
+      , testShowType
+      , testShowTypingRelation
+    ]
+
+testShowExpression = generateShowTests "Expression" [
+        ShowTest "Simple lambda"
+            "\\x : a -> x"
+            (Lam "x" (TVar "a") (Var "x"))
+      , ShowTest "Arrow type in lambda"
+            "\\x : (a -> b) -> x"
+            (Lam "x" (TVar "a" :-> TVar "b") (Var "x"))
+      , ShowTest "K-combinator"
+            "\\x : a -> \\y : b -> x"
+            (Lam "x" (TVar "a") (Lam "y" (TVar "b") (Var "x")))
+      , ShowTest "Lambda spreads right"
+            "\\x : a -> x y"
+            (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+      , ShowTest "Application"
+            "x y"
+            (Var "x" :@ Var "y")
+      , ShowTest "Left associativity of application"
+            "x y z"
+            (Var "x" :@ Var "y" :@ Var "z")
+      , ShowTest "Left associativity of application 2"
+            "x (y z)"
+            (Var "x" :@ (Var "y" :@ Var "z"))
+      , ShowTest "Application with lambda"
+            "(\\x : a -> x y) (\\x : a -> x)"
+            (Lam "x" (TVar "a") (Var "x" :@ Var "y") :@ Lam "x" (TVar "a") (Var "x"))
+    ]
+
+testShowType = generateShowTests "Type" [
+        ShowTest "Single var"
+            "x"
+            (TVar "x")
+      , ShowTest "Arrow"
+            "x -> y"
+            (TVar "x" :-> TVar "y")
+      , ShowTest "Right associativity"
+            "x -> y -> z"
+            (TVar "x" :-> TVar "y" :-> TVar "z")
+      , ShowTest "Right associativity 2"
+            "(x -> y) -> z"
+            ((TVar "x" :-> TVar "y") :-> TVar "z")
+      , ShowTest "Brackets mid"
+            "x -> (y -> t) -> z"
+            (TVar "x" :-> (TVar "y" :-> TVar "t") :-> TVar "z")
+    ]
+
+
+testShowTypingRelation = generateShowTests "Typing relation" [
+        ShowTest "Simple"
+            "y : b |- \\x : a -> x y : a -> b -> a"
+            (TypingRelation 
+                (Env [("y", TVar "b")])
+                (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+                (TVar "a" :-> TVar "b" :-> TVar "a"))
+      , ShowTest "Empty environment"
+            "|- \\x : a -> x y : a -> b -> a"
+            (TypingRelation 
+                    (Env [])
+                    (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+                    (TVar "a" :-> TVar "b" :-> TVar "a"))
+      , ShowTest "Arrow types in environment"
+            "z : a -> b |- \\x : a -> x y : a -> b -> a"
+            (TypingRelation 
+                (Env [("z", TVar "a" :-> TVar "b")])
+                (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+                (TVar "a" :-> TVar "b" :-> TVar "a"))
+      , ShowTest "Application"
+            "z : a -> b |- (\\x : a -> x y) (\\t : r -> t) : a -> b -> a"
+            (TypingRelation 
+                (Env [("z", TVar "a" :-> TVar "b")])
+                (Lam "x" (TVar "a") (Var "x" :@ Var "y")
+                :@ Lam "t" (TVar "r") (Var "t"))
+                (TVar "a" :-> TVar "b" :-> TVar "a"))
+      , ShowTest "Long environment"
+            "y : b, z : q |- \\x : a -> x y : a -> b -> a"
+            (TypingRelation 
+                (Env [("y", TVar "b"), ("z", TVar "q")])
+                (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+                (TVar "a" :-> TVar "b" :-> TVar "a"))
     ]
