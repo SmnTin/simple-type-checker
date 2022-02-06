@@ -1,0 +1,30 @@
+name: Haskell CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+    
+  workflow_dispatch:
+  
+jobs:
+  build:
+    runs-on: ubuntu-latest # or macOS-latest, or windows-latest
+    name: Build and test Simple Type Checker
+    steps:
+      - uses: actions/checkout@v2
+      - uses: haskell/actions/setup@v1
+          with:
+            ghc-version: '8.10.7'
+            enable-stack: true
+            stack-version: 'latest'
+
+      - name: Install dependencies
+        run: |
+          stack update
+          stack build --only-dependencies
+      - name: Build
+        run: stack build
+      - name: Run tests
+        run: stack test
