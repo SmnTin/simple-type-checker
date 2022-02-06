@@ -7,6 +7,7 @@ module SimpleTypeChecker.IO ( parseExpression
 
 import SimpleTypeChecker.Parser
 import SimpleTypeChecker.Types
+import SimpleTypeChecker.TypeChecker
 
 import Control.Applicative (empty, Alternative (many, (<|>)))
 import Data.Char (isLower, digitToInt, isDigit, isSpace, isUpper, isAlphaNum)
@@ -176,8 +177,29 @@ instance Show Expr where
 
 instance Show Env where
     showsPrec _ (Env [])      = showString ""
-    showsPrec _ (Env (d:ds))  = foldl' (\sh d' -> sh . showString ", " . showDecl d') (showDecl d) ds . showChar ' '
+    showsPrec _ (Env (d:ds))  = foldl' (\sh d' -> sh . showString ", " . showDecl d') (showDecl d) ds
         where showDecl (s, t) = showString s . showString " : " . shows t
 
 instance Show TypingRelation where
-    showsPrec p (TypingRelation env expr t) = showParen (p > 0) $ shows env . showString "|- " . shows expr . showString " : " . shows t
+    showsPrec p (TypingRelation env expr t) = showParen (p > 0) $ shows env . showVdash env . shows expr . showString " : " . shows t
+        where showVdash (Env e) = if null e 
+                                  then showString "|- " 
+                                  else showString " |- "
+
+instance Show TypeError where
+    show (FreeVarNotTyped env x) = 
+        "The type of the free variable " ++ show x 
+        ++ " is not given in the environment:\n" 
+        ++ "    " ++ show env
+    show (LeftApplicantIsNotArrow env expr ty) = 
+        "The type of the left applicant is not an arrow type:\n"
+        ++ "    " ++ show (TypingRelation env expr ty)
+    show (ApplicationTypesMismatch env (e1, t1) (e2, t2)) = 
+        "The types of the applicants does not match:\n"
+        ++ "    " ++ show (TypingRelation env e1 t1) ++ "\n"
+        ++ "    " ++ show (TypingRelation env e2 t2)
+    show (InferredAndGivenTypesMismatch rel inferred) =
+        "The given typing relation is:\n"
+        ++ "    " ++ show rel ++ "\n"
+        ++ "but the inferred type is:\n"
+        ++ "    " ++ show inferred

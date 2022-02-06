@@ -11,15 +11,17 @@ data TypeError = FreeVarNotTyped Env Symb
                     -- given environment, the left applicant and its inferred type
                | ApplicationTypesMismatch Env (Expr, Type) (Expr, Type)  
                     -- given environment, the left and right applicants and their inferred types
-               | InferredAndGivenTypesMismatch Type                     
+               | InferredAndGivenTypesMismatch TypingRelation Type                     
                     -- the inferred type of the typing relation 
+    deriving Eq
 
 
 extendEnv :: Env -> Symb -> Type -> Env 
 extendEnv (Env ((x, t) : e)) x' t' = 
     if x' == x 
     then Env $ (x, t') : e
-    else extendEnv (Env e) x t
+    else case extendEnv (Env e) x' t' of
+        Env e' -> Env $ (x, t) : e'
 extendEnv (Env []) x' t' = Env [(x', t')]
 
 
@@ -45,8 +47,8 @@ inferType env (Lam arg argType expr) = do
 
 
 checkTypingRelation :: TypingRelation -> Except TypeError ()
-checkTypingRelation (TypingRelation env expr givenType) = do
+checkTypingRelation rel@(TypingRelation env expr givenType) = do
     inferredType <- inferType env expr
     if inferredType == givenType
     then return ()
-    else throwError $ InferredAndGivenTypesMismatch inferredType
+    else throwError $ InferredAndGivenTypesMismatch rel inferredType

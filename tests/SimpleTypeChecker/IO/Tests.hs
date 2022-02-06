@@ -6,9 +6,8 @@ import SimpleTypeChecker.Parser
 
 import Test.Tasty.HUnit
 import Test.Tasty
-import Control.Applicative
 
-tests = testGroup "SimpleTypeChecker.IO.Tests" [
+tests = testGroup "SimpleTypeChecker.IO" [
         testParse
       , testShow
     ]
