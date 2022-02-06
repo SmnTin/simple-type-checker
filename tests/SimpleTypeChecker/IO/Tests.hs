@@ -41,7 +41,7 @@ generateShowTests testGroupName parseTests =
 testParseVariablesOnly = generateParseTests "Variables only" parseExpression [
         ParseTest "Simple"                      (Just $ Var "x")        "x"
       , ParseTest "Trailing spaces"             (Just $ Var "y")        "y   "
-      , ParseTest "Trailing and leading spaces" (Just $ Var "y")        "y   "
+      , ParseTest "Trailing and leading spaces" (Just $ Var "y")        "  y   "
       , ParseTest "Several characters"          (Just $ Var "len")      "len"
       , ParseTest "AlphaNum"                    (Just $ Var "fuNe9T")   "fuNe9T"
       , ParseTest "Underscore"                  (Just $ Var "just_var") "just_var"
