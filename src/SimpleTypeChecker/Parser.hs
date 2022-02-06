@@ -2,11 +2,20 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module SimpleTypeChecker.Parser (Parser, parser, runParser, runParserFully) where
+
+module SimpleTypeChecker.Parser ( Parser
+                                , parser
+                                , runParser
+                                , runParserFully
+                                , parserToReadsPrec
+                                , satisfy
+                                ) where
 
 import Control.Monad.Except (Except, MonadError (catchError, throwError), runExcept)
 import Control.Applicative (Alternative ((<|>)), empty)
 import Data.Coerce (coerce)
+import Data.Maybe (fromJust)
+import Data.Tuple (swap)
 
 -- Monadic parser that is used to parse lambda expressions from the command prompt
 newtype Parser a =
@@ -19,6 +28,10 @@ runParserFully :: Parser a -> String -> Maybe a
 runParserFully (Parser f) s = case f s of
     Just ([], r) -> Just r
     _            -> Nothing 
+
+parserToReadsPrec :: Parser a -> Int -> ReadS a
+parserToReadsPrec p _ s = [swap $ fromJust $ runParser p s]
+
 
 instance Functor Parser where
     fmap :: forall a b. (a -> b) -> Parser a -> Parser b
@@ -56,3 +69,9 @@ instance Monad Parser where
 instance MonadFail Parser where
     fail :: String -> Parser a
     fail _ = empty
+
+
+satisfy :: (Char -> Bool) -> Parser Char
+satisfy pred = parser f where
+  f (c:cs) | pred c  = Just (cs,c)
+  f _                = Nothing

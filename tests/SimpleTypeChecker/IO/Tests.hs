@@ -30,6 +30,14 @@ generateParseTests testGroupName parser parseTests =
         let parsedExpr = runParserFully parser strToParse
         return $ testCase testName $ assertEqual "" expected parsedExpr
 
+data ShowTest a = ShowTest TestName String a
+generateShowTests :: (Eq a, Show a) => TestName -> Parser a -> [ParseTest a] -> TestTree
+generateShowTests testGroupName parser parseTests =
+    testGroup testGroupName $ do
+        ParseTest testName expected strToParse <- parseTests
+        let parsedExpr = runParserFully parser strToParse
+        return $ testCase testName $ assertEqual "" expected parsedExpr
+
 testParseVariablesOnly = generateParseTests "Variables only" parseExpression [
         ParseTest "Simple"                      (Just $ Var "x")        "x"
       , ParseTest "Trailing spaces"             (Just $ Var "y")        "y   "

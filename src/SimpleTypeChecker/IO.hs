@@ -1,5 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
-module SimpleTypeChecker.IO where
+module SimpleTypeChecker.IO ( parseExpression
+                            , parseTypingRelation
+                            , parseType
+                            , parseEnvironment
+                            ) where
 
 import SimpleTypeChecker.Parser
 import SimpleTypeChecker.Types
@@ -8,11 +12,6 @@ import Control.Applicative (empty, Alternative (many, (<|>)))
 import Data.Char (isLower, digitToInt, isDigit, isSpace, isUpper, isAlphaNum)
 import Data.Foldable (Foldable(foldl'))
 import Control.Monad.Except(MonadError(throwError, catchError))
-
-satisfy :: (Char -> Bool) -> Parser Char
-satisfy pred = parser f where
-  f (c:cs) | pred c  = Just (cs,c)
-  f _                = Nothing
 
 lower :: Parser Char
 lower = satisfy isLower
@@ -80,6 +79,7 @@ parseTypeAtom = parseTypeVariable <|>
 
 parseType :: Parser Type
 parseType = do
+    _     <- spaces
     types <- many parseTypeArrow
     tail  <- parseTypeAtom
     _     <- spaces
@@ -176,8 +176,21 @@ instance Show Expr where
 
 instance Show Env where
     showsPrec _ (Env [])      = showString ""
-    showsPrec _ (Env (d:ds))  = foldl' (\sh d' -> sh . showString ", " . showDecl d') (showDecl d) ds 
+    showsPrec _ (Env (d:ds))  = foldl' (\sh d' -> sh . showString ", " . showDecl d') (showDecl d) ds
         where showDecl (s, t) = showString s . showString " : " . shows t
 
 instance Show TypingRelation where
     showsPrec p (TypingRelation env expr t) = showParen (p > 0) $ shows env . showString " |- " . shows expr . showString " : " . shows t
+
+
+instance Read Type where
+    readsPrec = parserToReadsPrec parseType
+
+instance Read Expr where
+    readsPrec = parserToReadsPrec parseExpression
+
+instance Read Env where
+    readsPrec = parserToReadsPrec parseEnvironment
+
+instance Read TypingRelation where
+    readsPrec = parserToReadsPrec parseTypingRelation
