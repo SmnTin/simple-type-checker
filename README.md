@@ -23,6 +23,11 @@ $ stack run -- "|- \x : A -> x  :  A -> A"
 Everything is okay :)
 ```
 
+To run tests type:
+```
+$ stack test
+```
+
 ## Syntax
 
 ### Type and expression variables
