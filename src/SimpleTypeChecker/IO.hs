@@ -36,8 +36,9 @@ alphaNum :: Parser Char
 alphaNum = satisfy isAlphaNum
 
 string :: String -> Parser String
-string = foldl' (\p c -> (++) <$> p <*> (pure <$> char c)) emptyParser
-    where emptyParser = parser $ \s -> Just (s, "")
+string = foldl' appendChar emptyParser
+    where appendChar p c = (++) <$> p <*> (pure <$> char c)
+          emptyParser = parser $ \s -> Just (s, "")
 
 
 parseSymbol :: Parser Symb
@@ -164,7 +165,9 @@ parseTypingRelation = do
 
 instance Show Type where
     showsPrec _ (TVar s)  = showString s
-    showsPrec p (a :-> b) = showParen (p > 3) $ showsPrec 4 a . showString " -> " . showsPrec 3 b
+
+    showsPrec p (a :-> b) = showParen (p > 3) $ 
+        showsPrec 4 a . showString " -> " . showsPrec 3 b
 
 showTypeAtom :: Type -> ShowS
 showTypeAtom (TVar s) = showString s
