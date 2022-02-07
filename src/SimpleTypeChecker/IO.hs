@@ -115,7 +115,7 @@ parseAbstractedVar :: Parser (Symb, Type)
 parseAbstractedVar = do
     symb <- parseSymbol
     _    <- char ':' >> spaces
-    ty   <- parseTypeAtom
+    ty   <- parseType
     return (symb, ty)
 
 
@@ -123,7 +123,7 @@ parseLambda :: Parser Expr
 parseLambda = do
     _          <- char '\\' >> spaces
     (symb, ty) <- parseAbstractedVar
-    _          <- string "->" >> spaces
+    _          <- char '.' >> spaces
     Lam symb ty <$> parseExpression
 
 
@@ -181,7 +181,7 @@ instance Show Expr where
 
     showsPrec p (Lam s t e) = showParen (p > 0) $ 
         showChar '\\' . showString s . showString " : " 
-        . showTypeAtom t . showString " -> " . shows e
+        . showTypeAtom t . showString ". " . shows e
 
 instance Show Env where
     showsPrec _ (Env [])      = showString ""

@@ -64,7 +64,7 @@ More precisely:
 
 1. If `x` is a variable then `x` is an expression.
 2. If `M` and `N` are expressions then the application `M N` is an expression.
-3. If `M` is an expression, `x` is a variable and `T` is a type then the lambda abstaction `\x : T -> M` is an expression. Variable `x` is said to be abstracted or captured by the lambda.
+3. If `M` is an expression, `x` is a variable and `T` is a type then the lambda abstaction `\x : T. M` is an expression. Variable `x` is said to be abstracted or captured by the lambda.
 
 Note that the application is left associative, e.g.:
 ```
@@ -73,17 +73,17 @@ M N K  =  (M N) K
 
 Also note that the lambda spreads right as far as possible, e.g:
 ```
-\x : a -> x y  =  \x : a -> (x y)
+\x : a. x y  =  \x : a. (x y)
 ```
 
-And the last note is that if the type of the captured variable is an arrow type, it has to be wrapped with parentheses:
+Last remark. Even though this is not required, it is still recommended for readability purposes to wrap the type of the captured variable in parentheses if it is an arrow type:
 ```
-\x : (A -> B) -> x
+\x : (A -> B). x
 ```
 
 ### Environments
 
-An environment is basically a list of type definitions for expression variables.
+An environment is a list of type definitions for expression variables.
 
 If `x` is a variable and `T` is a type then the type definition is written as `x : T`.
 
@@ -111,7 +111,7 @@ It is read as "Expression `expr` has type `type` in the environment `env`".
 
 Examples:
 ```
-            |- \x : A -> \y : B -> x   :  A -> B -> A
-     y : A  |- \x : (A -> B) -> x y    :  A -> B -> A
-z : C -> D  |- (\x : (C -> D) -> x) y  :  C -> D
+            |- \x : A. \y : B. x     :  A -> B -> A
+     y : A  |- \x : (A -> B). x y    :  A -> B -> A
+z : C -> D  |- (\x : (C -> D). x) y  :  C -> D
 ```
