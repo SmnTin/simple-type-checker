@@ -36,8 +36,8 @@ alphaNum :: Parser Char
 alphaNum = satisfy isAlphaNum
 
 string :: String -> Parser String
-string (x:xs) = foldl' (\p c -> (++) <$> p <*> (pure <$> char c)) (pure <$> char x) xs
-string []     = undefined
+string = foldl' (\p c -> (++) <$> p <*> (pure <$> char c)) emptyParser
+    where emptyParser = parser $ \s -> Just (s, "")
 
 
 parseSymbol :: Parser Symb
@@ -172,29 +172,41 @@ showTypeAtom t        = showParen True $ shows t
 
 instance Show Expr where
     showsPrec _ (Var s)     = showString s
-    showsPrec p (a :@ b)    = showParen (p > 4) $ showsPrec 4 a . showChar ' ' . showsPrec 5 b
-    showsPrec p (Lam s t e) = showParen (p > 0) $ showChar '\\' . showString s . showString " : " . showTypeAtom t . showString " -> " . shows e
+
+    showsPrec p (a :@ b)    = showParen (p > 4) $ 
+        showsPrec 4 a . showChar ' ' . showsPrec 5 b
+
+    showsPrec p (Lam s t e) = showParen (p > 0) $ 
+        showChar '\\' . showString s . showString " : " 
+        . showTypeAtom t . showString " -> " . shows e
 
 instance Show Env where
     showsPrec _ (Env [])      = showString ""
-    showsPrec _ (Env (d:ds))  = foldl' (\sh d' -> sh . showString ", " . showDecl d') (showDecl d) ds
-        where showDecl (s, t) = showString s . showString " : " . shows t
+
+    showsPrec _ (Env (d:ds))  =
+        foldl' appendDecl (showDecl d) ds
+        where appendDecl sh d' =
+                sh . showString ", " . showDecl d'
+              showDecl (s, t) = 
+                showString s . showString " : " . shows t
 
 instance Show TypingRelation where
-    showsPrec p (TypingRelation env expr t) = showParen (p > 0) $ shows env . showVdash env . shows expr . showString " : " . shows t
-        where showVdash (Env e) = if null e 
-                                  then showString "|- " 
+    showsPrec p (TypingRelation env expr t) = 
+        showParen (p > 0) $ shows env . showVdash env 
+        . shows expr . showString " : " . shows t
+        where showVdash (Env e) = if null e
+                                  then showString "|- "
                                   else showString " |- "
 
 instance Show TypeError where
-    show (FreeVarNotTyped env x) = 
-        "The type of the free variable " ++ show x 
-        ++ " is not given in the environment:\n" 
+    show (FreeVarNotTyped env x) =
+        "The type of the free variable " ++ show x
+        ++ " is not given in the environment:\n"
         ++ "    " ++ show env
-    show (LeftApplicantIsNotArrow env expr ty) = 
+    show (LeftApplicantIsNotArrow env expr ty) =
         "The type of the left applicant is not an arrow type:\n"
         ++ "    " ++ show (TypingRelation env expr ty)
-    show (ApplicationTypesMismatch env (e1, t1) (e2, t2)) = 
+    show (ApplicationTypesMismatch env (e1, t1) (e2, t2)) =
         "The types of the applicants does not match:\n"
         ++ "    " ++ show (TypingRelation env e1 t1) ++ "\n"
         ++ "    " ++ show (TypingRelation env e2 t2)
