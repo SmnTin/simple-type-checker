@@ -58,24 +58,33 @@ parseTypeVariable :: Parser Type
 parseTypeVariable = TVar <$> parseSymbol
 
 
-parseBrackets :: Parser a -> Parser a
-parseBrackets m = do
-    _ <- char '(' >> spaces
+parseForall :: Parser Type 
+parseForall = do
+    _    <- char '@' >> spaces
+    symb <- parseSymbol
+    _    <- char '.' >> spaces
+    Forall symb <$> parseType
+
+
+parseBrackets :: Char -> Char -> Parser a -> Parser a
+parseBrackets left right m = do
+    _ <- char left >> spaces
     x <- m
-    _ <- char ')' >> spaces
+    _ <- char right >> spaces
     return x
 
 
 parseExprBrackets :: Parser Expr
-parseExprBrackets = parseBrackets parseExpression
+parseExprBrackets = parseBrackets '(' ')' parseExpression
 
 
 parseTypeBrackets :: Parser Type
-parseTypeBrackets = parseBrackets parseType
+parseTypeBrackets = parseBrackets '(' ')' parseType
 
 
 parseTypeAtom :: Parser Type
 parseTypeAtom = parseTypeVariable <|>
+                parseForall <|>
                 parseTypeBrackets
 
 
@@ -101,18 +110,31 @@ parseExpression = spaces >>
 
 parseAtom :: Parser Expr
 parseAtom = parseLambda   <|>
+            parseTypeLambda <|>
             parseExprVariable <|>
             parseExprBrackets
 
 
+parseTypeApplicant :: Parser Type 
+parseTypeApplicant = parseBrackets '[' ']' parseType
+
+parseAtomOrTypeApplicant :: Parser (Either Expr Type)
+parseAtomOrTypeApplicant = (Left <$> parseAtom) <|>
+                           (Right <$> parseTypeApplicant)
+
+
 parseApplication :: Parser Expr
 parseApplication = do
-    (e : es) <- many parseAtom
-    return $ foldl' (:@) e es
+    e  <- parseAtom
+    es <- many parseAtomOrTypeApplicant
+    return $ foldl' apply e es
+        where apply e app = case app of
+                Left atom -> e :@ atom
+                Right ty  -> e :@* ty
 
 
-parseAbstractedVar :: Parser (Symb, Type)
-parseAbstractedVar = do
+parseLambdaVar :: Parser (Symb, Type)
+parseLambdaVar = do
     symb <- parseSymbol
     _    <- char ':' >> spaces
     ty   <- parseType
@@ -122,9 +144,17 @@ parseAbstractedVar = do
 parseLambda :: Parser Expr
 parseLambda = do
     _          <- char '\\' >> spaces
-    (symb, ty) <- parseAbstractedVar
+    (symb, ty) <- parseLambdaVar
     _          <- char '.' >> spaces
     Lam symb ty <$> parseExpression
+
+
+parseTypeLambda :: Parser Expr
+parseTypeLambda = do
+    _    <- char '#' >> spaces
+    symb <- parseSymbol
+    _    <- char '.' >> spaces
+    TLam symb <$> parseExpression
 
 
 parseDeclaration :: Parser (Symb, Type)
@@ -164,10 +194,13 @@ parseTypingRelation = do
 -- https://stackoverflow.com/questions/27471937/showsprec-and-operator-precedences
 
 instance Show Type where
-    showsPrec _ (TVar s)  = showString s
+    showsPrec _ (TVar s)     = showString s
 
-    showsPrec p (a :-> b) = showParen (p > 3) $ 
+    showsPrec p (a :-> b)    = showParen (p > 3) $ 
         showsPrec 4 a . showString " -> " . showsPrec 3 b
+
+    showsPrec p (Forall x t) = showParen (p > 0) $
+        showChar '@' . showString x . showString ". " . shows t
 
 showTypeAtom :: Type -> ShowS
 showTypeAtom (TVar s) = showString s
@@ -179,9 +212,17 @@ instance Show Expr where
     showsPrec p (a :@ b)    = showParen (p > 4) $ 
         showsPrec 4 a . showChar ' ' . showsPrec 5 b
 
+    showsPrec p (a :@* b)   = showParen (p > 4) $ 
+        showsPrec 4 a . showChar ' ' 
+        . showChar '[' . shows b . showChar ']'
+
     showsPrec p (Lam s t e) = showParen (p > 0) $ 
         showChar '\\' . showString s . showString " : " 
         . showTypeAtom t . showString ". " . shows e
+
+    showsPrec p (TLam s e) = showParen (p > 0) $ 
+        showChar '#' . showString s . showString ". " . shows e
+
 
 instance Show Env where
     showsPrec _ (Env [])      = showString ""

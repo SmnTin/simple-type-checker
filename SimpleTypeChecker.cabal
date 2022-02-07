@@ -57,6 +57,7 @@ test-suite SimpleTypeChecker-test
   other-modules:
       SimpleTypeChecker.IO.Tests
       SimpleTypeChecker.TypeChecker.Tests
+      SimpleTypeChecker.Types.TestBindings
       Paths_SimpleTypeChecker
   hs-source-dirs:
       tests

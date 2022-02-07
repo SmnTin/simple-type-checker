@@ -2,6 +2,7 @@ module SimpleTypeChecker.IO.Tests (tests) where
 
 import SimpleTypeChecker.IO
 import SimpleTypeChecker.Types
+import SimpleTypeChecker.Types.TestBindings
 import SimpleTypeChecker.Parser
 
 import Test.Tasty.HUnit
@@ -86,6 +87,18 @@ testParseType = generateParseTests "Type" parseType [
       , ParseTest "Long names"
             (Just $ TVar "xyy'" :-> TVar "y_gg2")
             "xyy' -> y_gg2"
+      , ParseTest "Empty type"
+            (Just emptyT)
+            "@a. a"
+      , ParseTest "Forall quantifier spreads right"
+            (Just boolT)
+            "@a. a -> a -> a"
+      , ParseTest "Nested quantifiers"
+            (Just kCombT)
+            "@a. @b. a -> b -> a"
+      , ParseTest "Quantifier in brackets"
+            (Just $ Forall "a" $ TVar "a" :-> Forall "b" (TVar "b") :-> TVar "a")
+            "@a. a -> (@b. b) -> a"
     ]
 
 testParseLambda = generateParseTests "Lambda" parseExpression [
@@ -108,8 +121,17 @@ testParseLambda = generateParseTests "Lambda" parseExpression [
             Nothing "\\x -> x"
       , ParseTest "No dot"
             Nothing "\\x : a  x"
-      , ParseTest "Empty type"
+      , ParseTest "No type 2"
             Nothing "\\x :  . x"
+      , ParseTest "Type lambda"
+            (Just id')
+            "#a. \\x : a. x"
+      , ParseTest "Type lambda with spaces"
+            (Just id')
+            " #  a. \\  x  :   a  . x    "
+      , ParseTest "Closed K-combinator"
+            (Just kComb)
+            "#a. #b. \\x : a. \\y : b. x"
     ]
 
 testParseApplication = generateParseTests "Application" parseExpression [
@@ -128,18 +150,36 @@ testParseApplication = generateParseTests "Application" parseExpression [
       , ParseTest "Brackets right"
             (Just $ Var "x" :@ (Var "y" :@ Var "z"))
             "x (y z)"
+      , ParseTest "Type application"
+            (Just $ Var "f" :@* TVar "x")
+            "f [x]"
+      , ParseTest "Mixed applications"
+            (Just $ Var "f" :@* TVar "a" :@ Var "g" :@* (TVar "b" :-> TVar "d") :@* TVar "c" :@ Var "h")
+            "f [a] g [b -> d] [c] h"
+      , ParseTest "First applicant is a type"
+            Nothing
+            "[x] f"
     ]
 
 testParseComplex = generateParseTests "Complex" parseExpression [
         ParseTest "Lambda spreads right"
             (Just $ Lam "x" (TVar "a") (Var "x" :@ Var "y"))
             "\\x : a. x y"
+      , ParseTest "Type lambda spreads right"
+            (Just $ TLam "a" $ Lam "x" (TVar "a") (Var "x") :@ Lam "y" (TVar "a") (Var "y"))
+            "#a. (\\x : a. x) (\\y : a. y)"
       , ParseTest "Lambda in brackets"
             (Just $ Lam "x" (TVar "a") (Var "x" :@ Var "y"))
             "(\\x : a. x y)"
+      , ParseTest "Type lambda in brackets"
+            (Just $ TLam "a" $ Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+            " (#a. (\\x : a. x y))"
       , ParseTest "Lambda application"
             (Just $ Lam "x" (TVar "a") (Var "x" :@ Var "y") :@ Var "z")
             "(\\x : a. x y) z"
+      , ParseTest "Type application with lambda"
+            (Just $ TLam "a" (Lam "x" (TVar "a") (Var "x" :@ Var "y")) :@* TVar "b")
+            "(#a. \\x : a. x y) [b]"
       , ParseTest "Lambda application with long names"
             (Just $ Lam "x9row" (TVar "abba") (Var "x9" :@ Var "yzz'") :@ Var "z_ff")
             "(\\x9row : abba. x9 yzz') z_ff"
@@ -149,11 +189,15 @@ testParseComplex = generateParseTests "Complex" parseExpression [
                     :@ Var "t"
                     :@ Lam "y" (TVar "b") (Var "x" :@ Var "y"))
             "\\z : d. (\\x : (a -> b). x y z) t (\\y : b. x y)"
+      , ParseTest "Brain destroyer"
+            (Just $ TLam "b" (TLam "c" $ Lam "x" (TVar "b") $ Lam "y" (TVar "c") $ Var "x")
+                    :@* Forall "a" (TVar "a" :-> TVar "c"))
+            "(#b. #c. \\x:b. \\y:c. x) [@a. a -> c]"
     ]
 
 testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelation [
         ParseTest "Simple"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [("y", TVar "b")])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
@@ -168,7 +212,7 @@ testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelati
             Nothing
             "y : b |- \\x : a. x y"
       , ParseTest "Long environment"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [("y", TVar "b"), ("z", TVar "q")])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
@@ -180,19 +224,19 @@ testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelati
             Nothing
             "y : b, z : q, |- \\x : a. x y : a -> b -> a"
       , ParseTest "Empty environment"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
             "  |- \\x : a. x y : a -> b -> a"
       , ParseTest "Arrow types in environment"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [("z", TVar "a" :-> TVar "b")])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
             "z : a -> b |- \\x : a. x y : a -> b -> a"
       , ParseTest "Application"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [("z", TVar "a" :-> TVar "b")])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y")
                     :@ Lam "t" (TVar "r") (Var "t"))
@@ -255,32 +299,32 @@ testShowType = generateShowTests "Type" [
 testShowTypingRelation = generateShowTests "Typing relation" [
         ShowTest "Simple"
             "y : b |- \\x : a. x y : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                 (Env [("y", TVar "b")])
                 (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                 (TVar "a" :-> TVar "b" :-> TVar "a"))
       , ShowTest "Empty environment"
             "|- \\x : a. x y : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                     (Env [])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
       , ShowTest "Arrow types in environment"
             "z : a -> b |- \\x : a. x y : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                 (Env [("z", TVar "a" :-> TVar "b")])
                 (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                 (TVar "a" :-> TVar "b" :-> TVar "a"))
       , ShowTest "Application"
             "z : a -> b |- (\\x : a. x y) (\\t : r. t) : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                 (Env [("z", TVar "a" :-> TVar "b")])
                 (Lam "x" (TVar "a") (Var "x" :@ Var "y")
                 :@ Lam "t" (TVar "r") (Var "t"))
                 (TVar "a" :-> TVar "b" :-> TVar "a"))
       , ShowTest "Long environment"
             "y : b, z : q |- \\x : a. x y : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                 (Env [("y", TVar "b"), ("z", TVar "q")])
                 (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                 (TVar "a" :-> TVar "b" :-> TVar "a"))
