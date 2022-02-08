@@ -243,19 +243,35 @@ instance Show TypingRelation where
                                   else showString " |- "
 
 instance Show TypeError where
+
     show (FreeVarNotTyped env x) =
         "The type of the free variable " ++ show x
         ++ " is not given in the environment:\n"
         ++ "    " ++ show env
+
     show (LeftApplicantIsNotArrow env expr ty) =
         "The type of the left applicant is not an arrow type:\n"
         ++ "    " ++ show (TypingRelation env expr ty)
+
     show (ApplicationTypesMismatch env (e1, t1) (e2, t2)) =
         "The types of the applicants does not match:\n"
         ++ "    " ++ show (TypingRelation env e1 t1) ++ "\n"
         ++ "    " ++ show (TypingRelation env e2 t2)
+
     show (InferredAndGivenTypesMismatch rel inferred) =
         "The given typing relation is:\n"
         ++ "    " ++ show rel ++ "\n"
         ++ "but the inferred type is:\n"
         ++ "    " ++ show inferred
+
+    show (FreeTVarShadowed env expr var) = 
+        "The type variable " ++ show var ++ " is shadowed in the expression: \n"
+        ++ "    " ++ show expr ++ "\n"
+        ++ "in the environment:\n"
+        ++ "    " ++ show env
+
+    show (TypeApplicationTypesMismatch env (expr, leftT) rightT) =
+        "The type of the left applicant:\n"
+        ++ "    " ++ show (TypingRelation env expr leftT) ++ "\n"
+        ++ "does not match the right applicant:\n"
+        ++ "    " ++ "[" ++ show rightT ++ "]"

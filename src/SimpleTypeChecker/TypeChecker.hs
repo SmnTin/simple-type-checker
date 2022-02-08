@@ -25,7 +25,7 @@ data TypeError = FreeVarNotTyped Env Symb
                     -- given environment, the left and right applicants and their inferred types
                | InferredAndGivenTypesMismatch TypingRelation Type
                     -- the typing relation and its inferred type
-               | FreeTVarShadowed [Symb] Expr Symb
+               | FreeTVarShadowed Env Expr Symb
                     -- the list of type variable names, the invalid expression and the shadowed variable name
                | TypeApplicationTypesMismatch Env (Expr, Type) Type
                     -- given environment, the left applicant and its inferred type and the right applicant
@@ -132,14 +132,14 @@ inferType' env freeTVars (Lam arg argType expr) = do
 
 
 inferType' env freeTVars expr@(TLam var e) = do
-    checkShadowing var freeTVars e
+    checkShadowing
     let freeTVars' = var : freeTVars
     Forall var <$> inferType' env freeTVars' e
 
-    where checkShadowing :: Symb -> TVars -> Expr -> Except TypeError ()
-          checkShadowing var freeTVars e = 
+    where checkShadowing :: Except TypeError ()
+          checkShadowing = 
                 when (var `elem` freeTVars) $ 
-                    throwError $ FreeTVarShadowed freeTVars e var
+                    throwError $ FreeTVarShadowed env expr var
 
 
 inferType' env freeTVars (e :@* t) = do
@@ -159,6 +159,6 @@ checkTypingRelation :: TypingRelation -> Except TypeError ()
 checkTypingRelation rel@(TypingRelation env expr givenType) = do
     inferredType <- inferType env expr
 
-    if inferredType == givenType
+    if inferredType `alphaEq` givenType
     then return ()
     else throwError $ InferredAndGivenTypesMismatch rel inferredType
