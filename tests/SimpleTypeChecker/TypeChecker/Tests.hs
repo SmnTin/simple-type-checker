@@ -7,8 +7,6 @@ import Control.Monad.Except
 
 import Test.Tasty.HUnit
 import Test.Tasty
-import SimpleTypeChecker.TypeChecker
-
 
 tests = testGroup "SimpleTypeChecker.TypeChecker" [
         testEnvExtension
