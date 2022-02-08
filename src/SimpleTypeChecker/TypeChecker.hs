@@ -3,6 +3,7 @@ module SimpleTypeChecker.TypeChecker( TypeError ( FreeVarNotTyped
                                                 , ApplicationTypesMismatch
                                                 , InferredAndGivenTypesMismatch
                                                 , FreeTVarShadowed
+                                                , FreeTVarShadowedInType
                                                 , TypeApplicationTypesMismatch
                                                 )
                                     , extendEnv
@@ -26,7 +27,9 @@ data TypeError = FreeVarNotTyped Env Symb
                | InferredAndGivenTypesMismatch TypingRelation Type
                     -- the typing relation and its inferred type
                | FreeTVarShadowed Env Expr Symb
-                    -- the list of type variable names, the invalid expression and the shadowed variable name
+                    -- given environment, the invalid expression and the shadowed variable name
+               | FreeTVarShadowedInType Env (Symb, Type) Symb
+                    -- given environment, the free variable and its type and the shadowed variable name
                | TypeApplicationTypesMismatch Env (Expr, Type) Type
                     -- given environment, the left applicant and its inferred type and the right applicant
     deriving Eq
@@ -95,13 +98,27 @@ substTypeIntoType x t (Forall y o) | y /= x = Forall y $ substTypeIntoType x t o
 substTypeIntoType _ _ ty                    = ty
 
 
+checkShadowingInType :: Env -> Symb -> TVars -> Type -> Except TypeError ()
+checkShadowingInType env freeVar freeTVars ty = helper freeTVars ty where 
+    helper :: TVars -> Type -> Except TypeError ()
+    helper freeTVars (TVar _) = return ()
+    helper freeTVars (a :-> b) = do
+        helper freeTVars a
+        helper freeTVars b
+    helper freeTVars (Forall x t) = do
+        when (x `elem` freeTVars) $ throwError $ FreeTVarShadowedInType env (freeVar, ty) x 
+        helper (x : freeTVars) t
+
+
 inferType' :: Env -> TVars -> Expr -> Except TypeError Type
 
 -- Type inference for a variable is just looking
 -- for a type in the environment
-inferType' (Env env) _ (Var x) = case lookup x env of
-    Just ty -> return ty
-    Nothing -> throwError $ FreeVarNotTyped (Env env) x
+inferType' env@(Env env') freeTVars (Var x) = case lookup x env' of
+        Just ty -> do
+            checkShadowingInType env x freeTVars ty
+            return ty
+        Nothing -> throwError $ FreeVarNotTyped env x
 
 -- Type inference for an applition.
 -- The left applicant should has an arrow type: a -> b
@@ -126,6 +143,8 @@ inferType' env freeTVars (f :@ x) = do
 -- if   |- M : b
 -- then |- \x : a -> M  :  a -> b
 inferType' env freeTVars (Lam arg argType expr) = do
+    checkShadowingInType env arg freeTVars argType
+
     let extendedEnv = extendEnv env arg argType
     exprType <- inferType' extendedEnv freeTVars expr
     return $ argType :-> exprType

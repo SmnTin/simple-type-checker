@@ -270,6 +270,10 @@ instance Show TypeError where
         ++ "in the environment:\n"
         ++ "    " ++ show env
 
+    show (FreeTVarShadowedInType env (expr, ty) var) = 
+        "The type variable " ++ show var ++ " is shadowed in the relation: \n"
+        ++ "    " ++ show (TypingRelation env (Var expr) ty)
+
     show (TypeApplicationTypesMismatch env (expr, leftT) rightT) =
         "The type of the left applicant:\n"
         ++ "    " ++ show (TypingRelation env expr leftT) ++ "\n"
