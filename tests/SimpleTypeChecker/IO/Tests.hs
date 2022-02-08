@@ -31,13 +31,6 @@ generateParseTests testGroupName parser parseTests =
         let parsedExpr = runParserFully parser strToParse
         return $ testCase testName $ assertEqual "" expected parsedExpr
 
-data ShowTest a = ShowTest TestName String a
-generateShowTests :: (Eq a, Show a) => TestName -> [ShowTest a] -> TestTree
-generateShowTests testGroupName parseTests =
-    testGroup testGroupName $ do
-        ShowTest testName expected expr <- parseTests
-        return $ testCase testName $ assertEqual "" expected $ show expr
-
 testParseVariablesOnly = generateParseTests "Variables only" parseExpression [
         ParseTest "Simple"                      (Just $ Var "x")        "x"
       , ParseTest "Trailing spaces"             (Just $ Var "y")        "y   "
@@ -247,11 +240,22 @@ testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelati
             "z : a -> b |- (\\x : a. x y) (\\t : r. t) : a -> b -> a"
     ]
 
+
 testShow = testGroup "Showing" [
         testShowExpression
       , testShowType
       , testShowTypingRelation
     ]
+
+
+data ShowTest a = ShowTest TestName String a
+
+generateShowTests :: (Eq a, Show a) => TestName -> [ShowTest a] -> TestTree
+generateShowTests testGroupName parseTests =
+    testGroup testGroupName $ do
+        ShowTest testName expected expr <- parseTests
+        return $ testCase testName $ assertEqual "" expected $ show expr
+
 
 testShowExpression = generateShowTests "Expression" [
         ShowTest "Simple lambda"
