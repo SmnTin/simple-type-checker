@@ -37,6 +37,8 @@ data TypeError = FreeVarNotTyped Env Symb
 
 infixl 3 :->.
 
+-- https://en.wikipedia.org/wiki/De_Bruijn_index
+-- The same technique is used with types.
 data DeBruijnType = CaptTVar Int
                   | FreeTVar Symb
                   | DeBruijnType :->. DeBruijnType
@@ -113,7 +115,8 @@ checkShadowingInType env freeVar freeTVars ty = helper freeTVars ty where
 inferType' :: Env -> TVars -> Expr -> Except TypeError Type
 
 -- Type inference for a variable is just looking
--- for a type in the environment
+-- for a type in the environment and checking if does not have
+-- type variable shadowing.
 inferType' env@(Env env') freeTVars (Var x) = case lookup x env' of
         Just ty -> do
             checkShadowingInType env x freeTVars ty
@@ -149,7 +152,9 @@ inferType' env freeTVars (Lam arg argType expr) = do
     exprType <- inferType' extendedEnv freeTVars expr
     return $ argType :-> exprType
 
-
+-- Type inferring algorithm for a type lambda abstraction 
+-- just inferes the type of the lambda body and
+-- then appends a quantifier to the type.
 inferType' env freeTVars expr@(TLam var e) = do
     checkShadowing
     let freeTVars' = var : freeTVars
@@ -160,7 +165,9 @@ inferType' env freeTVars expr@(TLam var e) = do
                 when (var `elem` freeTVars) $ 
                     throwError $ FreeTVarShadowed env expr var
 
-
+-- Type inference for a type applition.
+-- The left applicant should has a quantifier type: @a. R
+-- The type of the right is substituted into R instead of a.
 inferType' env freeTVars (e :@* t) = do
     inferred <- inferType' env freeTVars e
 

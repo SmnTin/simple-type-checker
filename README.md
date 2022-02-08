@@ -71,8 +71,8 @@ More precisely:
 1. If `x` is a variable then `x` is an expression.
 2. If `M` and `N` are expressions then the application `M N` is an expression.
 3. If `M` is an expression and `T` is a type then the type application `M [T]` is an expression.
-3. If `M` is an expression, `x` is a variable and `T` is a type then the lambda abstaction `\x : T. M` is an expression. `\` is used to denote small lambda. Variable `x` is said to be abstracted or captured by the lambda.
-4. If `M` is an expression, `a` is a type variable then the type abstaction `#a. M` is an expression. `#` is used to denote big lambda. Type variable `a` is said to be abstracted or captured by the lambda. 
+3. If `M` is an expression, `x` is a variable and `T` is a type then the lambda abstaction `\x : T. M` is an expression. `\` is used to denote small lambda. Variable `x` is said to be abstracted, binded or captured by the lambda.
+4. If `M` is an expression, `a` is a type variable then the type abstaction `#a. M` is an expression. `#` is used to denote big lambda. Type variable `a` is said to be abstracted, binded or captured by the lambda. 
 
 Note that the application as well as type application is left associative and both of them have the same priority, e.g.:
 ```
