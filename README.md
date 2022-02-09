@@ -1,7 +1,7 @@
 # Simple Type Checker
 [![Haskell CI](https://github.com/SmnTin/simple-type-checker/actions/workflows/haskell.yml/badge.svg)](https://github.com/SmnTin/simple-type-checker/actions/workflows/haskell.yml)
 
-A type checker for Church-style Symply Typed Lambda Calculus. It takes a typing relation and checks that it is correct.
+A type checker for Church-style Symply Typed Lambda Calculus. It takes a typing relation and checks if it is correct.
 
 ## Quick start
 
@@ -19,7 +19,7 @@ $ stack build
 
 Then run the type checker while providing it with a typing relation to check. For example:
 ```console
-$ stack run -- "|- \x : A -> x  :  A -> A"
+$ stack run -- "|- \x : A. x  :  A -> A"
 Everything is okay :)
 ```
 
