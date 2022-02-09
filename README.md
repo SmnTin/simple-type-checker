@@ -19,7 +19,7 @@ $ stack build
 
 Then run the type checker while providing it with a typing relation to check. For example:
 ```console
-$ stack run -- "|- \x : A -> x  :  A -> A"
+$ stack run -- "|-  \x : A. x  :  A -> A"
 Everything is okay :)
 ```
 
