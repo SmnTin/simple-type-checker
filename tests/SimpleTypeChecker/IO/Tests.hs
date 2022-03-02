@@ -2,6 +2,7 @@ module SimpleTypeChecker.IO.Tests (tests) where
 
 import SimpleTypeChecker.IO
 import SimpleTypeChecker.Types
+import SimpleTypeChecker.Types.TestBindings
 import SimpleTypeChecker.Parser
 
 import Test.Tasty.HUnit
@@ -29,13 +30,6 @@ generateParseTests testGroupName parser parseTests =
         ParseTest testName expected strToParse <- parseTests
         let parsedExpr = runParserFully parser strToParse
         return $ testCase testName $ assertEqual "" expected parsedExpr
-
-data ShowTest a = ShowTest TestName String a
-generateShowTests :: (Eq a, Show a) => TestName -> [ShowTest a] -> TestTree
-generateShowTests testGroupName parseTests =
-    testGroup testGroupName $ do
-        ShowTest testName expected expr <- parseTests
-        return $ testCase testName $ assertEqual "" expected $ show expr
 
 testParseVariablesOnly = generateParseTests "Variables only" parseExpression [
         ParseTest "Simple"                      (Just $ Var "x")        "x"
@@ -86,6 +80,18 @@ testParseType = generateParseTests "Type" parseType [
       , ParseTest "Long names"
             (Just $ TVar "xyy'" :-> TVar "y_gg2")
             "xyy' -> y_gg2"
+      , ParseTest "Empty type"
+            (Just emptyT)
+            "@a. a"
+      , ParseTest "Forall quantifier spreads right"
+            (Just boolT)
+            "@a. a -> a -> a"
+      , ParseTest "Nested quantifiers"
+            (Just kCombT)
+            "@a. @b. a -> b -> a"
+      , ParseTest "Quantifier in brackets"
+            (Just $ Forall "a" $ TVar "a" :-> Forall "b" (TVar "b") :-> TVar "a")
+            "@a. a -> (@b. b) -> a"
     ]
 
 testParseLambda = generateParseTests "Lambda" parseExpression [
@@ -95,9 +101,12 @@ testParseLambda = generateParseTests "Lambda" parseExpression [
       , ParseTest "Simple with leading spaces"
             (Just $ Lam "x" (TVar "a") (Var "x"))
             "  \\ x : a. x"
-      , ParseTest "Arrow type"
+      , ParseTest "Argument with arrow type"
             (Just $ Lam "x" (TVar "a" :-> TVar "b") (Var "x"))
-            "  \\ x : (a -> b). x"
+            "  \\ x : a -> b. x"
+      , ParseTest "Argument with quintifier type"
+            (Just $ Lam "x" (Forall "c" $ TVar "c") (Var "x"))
+            "  \\ x : @c.c. x"
       , ParseTest "Nested"
             (Just $ Lam "x" (TVar "a") (Lam "y" (TVar "b") (Var "x")))
             "\\x : a. \\y : b. x"
@@ -108,8 +117,17 @@ testParseLambda = generateParseTests "Lambda" parseExpression [
             Nothing "\\x -> x"
       , ParseTest "No dot"
             Nothing "\\x : a  x"
-      , ParseTest "Empty type"
+      , ParseTest "No type 2"
             Nothing "\\x :  . x"
+      , ParseTest "Type lambda"
+            (Just id')
+            "#a. \\x : a. x"
+      , ParseTest "Type lambda with spaces"
+            (Just id')
+            " #  a. \\  x  :   a  . x    "
+      , ParseTest "Closed K-combinator"
+            (Just kComb)
+            "#a. #b. \\x : a. \\y : b. x"
     ]
 
 testParseApplication = generateParseTests "Application" parseExpression [
@@ -128,18 +146,36 @@ testParseApplication = generateParseTests "Application" parseExpression [
       , ParseTest "Brackets right"
             (Just $ Var "x" :@ (Var "y" :@ Var "z"))
             "x (y z)"
+      , ParseTest "Type application"
+            (Just $ Var "f" :@* TVar "x")
+            "f [x]"
+      , ParseTest "Mixed applications"
+            (Just $ Var "f" :@* TVar "a" :@ Var "g" :@* (TVar "b" :-> TVar "d") :@* TVar "c" :@ Var "h")
+            "f [a] g [b -> d] [c] h"
+      , ParseTest "First applicant is a type"
+            Nothing
+            "[x] f"
     ]
 
 testParseComplex = generateParseTests "Complex" parseExpression [
         ParseTest "Lambda spreads right"
             (Just $ Lam "x" (TVar "a") (Var "x" :@ Var "y"))
             "\\x : a. x y"
+      , ParseTest "Type lambda spreads right"
+            (Just $ TLam "a" $ Lam "x" (TVar "a") (Var "x") :@ Lam "y" (TVar "a") (Var "y"))
+            "#a. (\\x : a. x) (\\y : a. y)"
       , ParseTest "Lambda in brackets"
             (Just $ Lam "x" (TVar "a") (Var "x" :@ Var "y"))
             "(\\x : a. x y)"
+      , ParseTest "Type lambda in brackets"
+            (Just $ TLam "a" $ Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+            " (#a. (\\x : a. x y))"
       , ParseTest "Lambda application"
             (Just $ Lam "x" (TVar "a") (Var "x" :@ Var "y") :@ Var "z")
             "(\\x : a. x y) z"
+      , ParseTest "Type application with lambda"
+            (Just $ TLam "a" (Lam "x" (TVar "a") (Var "x" :@ Var "y")) :@* TVar "b")
+            "(#a. \\x : a. x y) [b]"
       , ParseTest "Lambda application with long names"
             (Just $ Lam "x9row" (TVar "abba") (Var "x9" :@ Var "yzz'") :@ Var "z_ff")
             "(\\x9row : abba. x9 yzz') z_ff"
@@ -149,11 +185,15 @@ testParseComplex = generateParseTests "Complex" parseExpression [
                     :@ Var "t"
                     :@ Lam "y" (TVar "b") (Var "x" :@ Var "y"))
             "\\z : d. (\\x : (a -> b). x y z) t (\\y : b. x y)"
+      , ParseTest "Brain destroyer"
+            (Just $ TLam "b" (TLam "c" $ Lam "x" (TVar "b") $ Lam "y" (TVar "c") $ Var "x")
+                    :@* Forall "a" (TVar "a" :-> TVar "c"))
+            "(#b. #c. \\x:b. \\y:c. x) [@a. a -> c]"
     ]
 
 testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelation [
         ParseTest "Simple"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [("y", TVar "b")])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
@@ -168,7 +208,7 @@ testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelati
             Nothing
             "y : b |- \\x : a. x y"
       , ParseTest "Long environment"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [("y", TVar "b"), ("z", TVar "q")])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
@@ -180,19 +220,19 @@ testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelati
             Nothing
             "y : b, z : q, |- \\x : a. x y : a -> b -> a"
       , ParseTest "Empty environment"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
             "  |- \\x : a. x y : a -> b -> a"
       , ParseTest "Arrow types in environment"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [("z", TVar "a" :-> TVar "b")])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
             "z : a -> b |- \\x : a. x y : a -> b -> a"
       , ParseTest "Application"
-            (Just $ TypingRelation 
+            (Just $ TypingRelation
                     (Env [("z", TVar "a" :-> TVar "b")])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y")
                     :@ Lam "t" (TVar "r") (Var "t"))
@@ -200,11 +240,22 @@ testParseTypingRelation = generateParseTests "Typing relation" parseTypingRelati
             "z : a -> b |- (\\x : a. x y) (\\t : r. t) : a -> b -> a"
     ]
 
+
 testShow = testGroup "Showing" [
         testShowExpression
       , testShowType
       , testShowTypingRelation
     ]
+
+
+data ShowTest a = ShowTest TestName String a
+
+generateShowTests :: (Eq a, Show a) => TestName -> [ShowTest a] -> TestTree
+generateShowTests testGroupName parseTests =
+    testGroup testGroupName $ do
+        ShowTest testName expected expr <- parseTests
+        return $ testCase testName $ assertEqual "" expected $ show expr
+
 
 testShowExpression = generateShowTests "Expression" [
         ShowTest "Simple lambda"
@@ -213,24 +264,39 @@ testShowExpression = generateShowTests "Expression" [
       , ShowTest "Arrow type in lambda"
             "\\x : (a -> b). x"
             (Lam "x" (TVar "a" :-> TVar "b") (Var "x"))
+      , ShowTest "Quantifier type in lambda"
+            "\\x : (@c. c). x"
+            (Lam "x" (Forall "c" $ TVar "c") (Var "x"))
       , ShowTest "K-combinator"
             "\\x : a. \\y : b. x"
             (Lam "x" (TVar "a") (Lam "y" (TVar "b") (Var "x")))
       , ShowTest "Lambda spreads right"
             "\\x : a. x y"
             (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+      , ShowTest "Type lambda spreads right"
+            "#a. x y"
+            (TLam "a" (Var "x" :@ Var "y"))
       , ShowTest "Application"
             "x y"
             (Var "x" :@ Var "y")
+      , ShowTest "Type application"
+            "x [y]"
+            (Var "x" :@* TVar "y")
       , ShowTest "Left associativity of application"
             "x y z"
             (Var "x" :@ Var "y" :@ Var "z")
       , ShowTest "Left associativity of application 2"
             "x (y z)"
             (Var "x" :@ (Var "y" :@ Var "z"))
+      , ShowTest "Mixed applications"
+            "f [a] g [b -> d] [c] h"
+            (Var "f" :@* TVar "a" :@ Var "g" :@* (TVar "b" :-> TVar "d") :@* TVar "c" :@ Var "h")
       , ShowTest "Application with lambda"
             "(\\x : a. x y) (\\x : a. x)"
             (Lam "x" (TVar "a") (Var "x" :@ Var "y") :@ Lam "x" (TVar "a") (Var "x"))
+      , ShowTest "Application with type lambda"
+            "(#a. \\x : a. x) [a -> b]"
+            (TLam "a" (Lam "x" (TVar "a") (Var "x")) :@* (TVar "a" :-> TVar "b"))
     ]
 
 testShowType = generateShowTests "Type" [
@@ -249,38 +315,53 @@ testShowType = generateShowTests "Type" [
       , ShowTest "Brackets mid"
             "x -> (y -> t) -> z"
             (TVar "x" :-> (TVar "y" :-> TVar "t") :-> TVar "z")
+      , ShowTest "Forall quantifier spreads right"
+            "@a. a -> a -> a"
+            boolT
+      , ShowTest "Nested quantifiers"
+            "@a. @b. a -> b -> a"
+            kCombT
+      , ShowTest "Quantifier in brackets"
+            "@a. a -> (@b. b) -> a"
+            (Forall "a" $ TVar "a" :-> Forall "b" (TVar "b") :-> TVar "a")
     ]
 
 
 testShowTypingRelation = generateShowTests "Typing relation" [
         ShowTest "Simple"
             "y : b |- \\x : a. x y : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                 (Env [("y", TVar "b")])
                 (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                 (TVar "a" :-> TVar "b" :-> TVar "a"))
       , ShowTest "Empty environment"
             "|- \\x : a. x y : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                     (Env [])
                     (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                     (TVar "a" :-> TVar "b" :-> TVar "a"))
       , ShowTest "Arrow types in environment"
             "z : a -> b |- \\x : a. x y : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                 (Env [("z", TVar "a" :-> TVar "b")])
+                (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
+                (TVar "a" :-> TVar "b" :-> TVar "a"))
+      , ShowTest "Quantifier types in environment"
+            "z : @a. a -> b |- \\x : a. x y : a -> b -> a"
+            (TypingRelation
+                (Env [("z", Forall "a" $ TVar "a" :-> TVar "b")])
                 (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                 (TVar "a" :-> TVar "b" :-> TVar "a"))
       , ShowTest "Application"
             "z : a -> b |- (\\x : a. x y) (\\t : r. t) : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                 (Env [("z", TVar "a" :-> TVar "b")])
                 (Lam "x" (TVar "a") (Var "x" :@ Var "y")
                 :@ Lam "t" (TVar "r") (Var "t"))
                 (TVar "a" :-> TVar "b" :-> TVar "a"))
       , ShowTest "Long environment"
             "y : b, z : q |- \\x : a. x y : a -> b -> a"
-            (TypingRelation 
+            (TypingRelation
                 (Env [("y", TVar "b"), ("z", TVar "q")])
                 (Lam "x" (TVar "a") (Var "x" :@ Var "y"))
                 (TVar "a" :-> TVar "b" :-> TVar "a"))

@@ -2,9 +2,9 @@ name: Haskell CI
 
 on:
   push:
-    branches: [ master ]
+    branches: [ master, system-f ]
   pull_request:
-    branches: [ master ]
+    branches: [ master, system-f ]
     
   workflow_dispatch:
   
